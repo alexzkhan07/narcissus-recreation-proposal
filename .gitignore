@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Data and experiment outputs
+datasets/
+outputs/
+runs/
+checkpoints/
+*.pt
+*.pth
+data/*
+!data/README.md
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
