@@ -1,29 +1,20 @@
-# Brief Proposal Template
-
-Use this as the one- or two-page proposal draft. Keep each section concise and focus on the project choice, the specific task, the goals, and the plan.
-
-## Project Title
-
-- Add a short title for the recreation project.
-- Example format: `Recreation of [Paper/Project Name]`
+# Recreation of Narcissus Clean-Label Backdoor Attack
 
 ## Team
 
-- List team member names.
-- If useful, note primary roles or responsibilities.
+- Max Boyington
+- Alex Khan
 
 ## 1. Project Choice
 
-- State the research project you chose.
-- Name the paper and repository you are using.
-- Explain why this project is a good candidate for recreation.
+NARCISSUS: A Practical Clean-Label Backdoor Attack with Limited Information
 
-### What to include here
 
-- Paper title
-- Source repository
-- Research area or topic
-- One or two sentences on why the project matters
+NARCISSUS is a clean-label backdoor attack, meaning the attack uses maliciously crafted data injected into a dataset without changing its labels (hence "clean-label"). This paper's attack was highly efficient, creating backdoors in models using only 0.05% of the training data. By optimizing the trigger to match a target class's internal features, it evades modern defenses and remains effective across a variety of datasets and real-world situations. 
+
+
+Repository: [reds-lab/Narcissus](https://github.com/reds-lab/Narcissus)  
+Paper: [arXiv:2204.05255](https://arxiv.org/abs/2204.05255)
 
 ## 2. Specific Task You Propose To Recreate
 
