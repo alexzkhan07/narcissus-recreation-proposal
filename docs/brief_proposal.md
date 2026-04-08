@@ -18,31 +18,25 @@ Paper: [arXiv:2204.05255](https://arxiv.org/abs/2204.05255)
 
 ## 2. Specific Task You Propose To Recreate
 
-- State exactly what part of the original project you plan to reproduce.
-- Be specific about the experiment, claim, model, dataset, or result you will target first.
+For this project, we propose to reproduce the primary performance claims of the NARCISSUS attack as detailed in the Comparison of attack effectiveness section of the original paper. Specifically, we will target the results presented in Table III, which demonstrates the attack's efficacy across three distinct datasets: CIFAR-10, PubFig, and Tiny-ImageNet.
 
-### What to include here
-
-- Which result or experiment you are recreating
-- What counts as the main success criterion
-- Whether this is a pure reproduction or a reproduction plus a small extension
+Our primary focus is to verify that an adversary can achieve a high Attack Success Rate (ASR)—exceeding 85% on Tiny-ImageNet and 97% on CIFAR-10—while maintaining a clean-label constraint and an extremely low poison ratio of 0.05%. We will utilize the ResNet-18 architecture for both the surrogate and victim models to evaluate the "all-to-one" attack scenario.
 
 ## 3. Goals
 
-- State the concrete goals of the project.
-- Focus on what you want to demonstrate by the end of the term.
+Primary Goal: Successfully reproduce the all-to-one clean-label backdoor attack on the CIFAR-10 dataset, achieving an ASR comparable to the reported 97.36% using only 25 poisoned images.
 
-### What to include here
+Secondary Goal: Validate the transferability and scalability of the attack by recreating the results for Tiny-ImageNet and PubFig, proving the attack works even when the dataset is large or has limited diversity (like faces).
 
-- Primary goal
-- Secondary goals
-- What you hope to learn or verify
+Replicate Figure 3 (Performance vs. Target-class poison ratio) to demonstrate the trade-off between Target-class Accuracy (Tar-ACC) and ASR, verifying that NARCISSUS maintains higher target accuracy than baseline attacks like BadNets-c or LC.
+
+Learning Objective: We hope to verify the "inward-pointing" nature of the NARCISSUS trigger—specifically, how optimizing a trigger to represent the internal features of a target class makes it more persistent and harder to remove via standard defenses than arbitrarily chosen triggers
 
 ## 4. Plan To Achieve The Goals
 
 1. **Environment setup :** Set up a Python 3.6 environment with PyTorch 1.10.1, TorchVision 0.11.2, OpenCV 4.5.3, and CUDA 11.0 to match the original authors' setup. Configure GPU access through Google Colab or SSH into a remote FSU machine. Clone the official [Narcissus repository](https://github.com/reds-lab/Narcissus) and verify the code runs end to end on CIFAR-10 with the default settings in `Narcissus.ipynb`.
 
-2. **Source code review :**  Go over and understand the full attack pipeline: poi-warm-up surrogate training, trigger generation via POOD-assisted feature extraction, trigger insertion into the target class, and test-time query manipulation. Keep track ofthe role of important hyperparameters (`l_inf_r`, `surrogate_epochs`, `warmup_round`, `gen_round`, `patch_mode`) and how they influence attacks.
+2. **Source code review :**  Go over and understand the full attack pipeline: poi-warm-up surrogate training, trigger generation via POOD-assisted feature extraction, trigger insertion into the target class, and test-time query manipulation. Keep track of the role of important hyperparameters (`l_inf_r`, `surrogate_epochs`, `warmup_round`, `gen_round`, `patch_mode`) and how they influence attacks.
 
 3. **Dataset acquisition and preprocessing :** Obtain all three datasets used in Table 3:
    - **CIFAR-10** — available directly via `torchvision.datasets`.
@@ -53,7 +47,7 @@ Paper: [arXiv:2204.05255](https://arxiv.org/abs/2204.05255)
 
 4. **Reproduce Table 3 — main attack results :** Use ResNet-18 to run the full Narcissus attack on each of the three datasets with a 0.05% overall poison ratio. Keep track of the clean test accuracy and the attack success rate (ASR). Look at Table 3 in the paper and see how our results stack up against the numbers in it.
 
-5. **Reproduce Figure 4 — poison ratio sweep :** On CIFAR-10, alter the poison ratio (e.g., 0.01%, 0.025%, 0.05%, 0.1%, 0.5%) and record ASR at each level. Plot the resulting curve and compare to Figure 4 in the paper to make sure we are getting similar results.
+5. **Reproduce Figure 4 — Ablation study :** On CIFAR-10, alter the poison ratio (e.g., 0.01%, 0.025%, 0.05%, 0.1%, 0.5%) and record ASR at each level. Plot the resulting curve and compare to Figure 4 in the paper to make sure we are getting similar results.
 
 6. **Analysis and write-up :** Put together all the results, make tables and graphs to compare them, and write the final report. Talk about any differences between our results and the paper, possible reasons for them (like different hardware, random seeds, or hyperparameter sensitivity), and what we learned about clean label backdoor attacks.
 
