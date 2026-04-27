@@ -267,11 +267,16 @@ def train_and_eval(
     root: str,
     cfg: Optional[TrainConfig] = None,
     device: Optional[torch.device] = None,
+    eval_trigger_fn: Optional[TriggerFn] = None,
 ) -> tuple[float, float]:
     """Run one (method, ratio, seed) cell of the Figure-3 grid.
 
     Returns (tar_acc, asr) as fractions in [0, 1]. Caller multiplies by 100
-    before writing to the figure3 CSV.
+    before writing to the figure3 CSV. `trigger_fn` is used to poison
+    target-class training images. `eval_trigger_fn`, when supplied, is used
+    for ASR evaluation; this supports Label-Consistent, where training poisons
+    include an adversarial-looking perturbation but test-time images receive
+    only the visible trigger.
     """
     cfg = cfg or TrainConfig()
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -298,7 +303,7 @@ def train_and_eval(
     _train(model, train_loader, cfg, device)
 
     tar_acc = _eval_tar_acc(model, root, target_class, device)
-    asr = _eval_asr(model, root, target_class, trigger_fn, device)
+    asr = _eval_asr(model, root, target_class, eval_trigger_fn or trigger_fn, device)
     return tar_acc, asr
 
 

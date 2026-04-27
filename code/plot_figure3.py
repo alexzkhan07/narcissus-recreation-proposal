@@ -25,6 +25,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -32,10 +35,10 @@ import pandas as pd
 METHOD_ORDER = ["BadNets", "Blend", "Label-Consistent", "Ours"]
 
 STYLE = {
-    "BadNets":          {"color": "#E89A7A", "marker": "o", "mfc": "white"},
-    "Blend":            {"color": "#5FA8C4", "marker": "D", "mfc": "white"},
-    "Label-Consistent": {"color": "#7FA674", "marker": "^", "mfc": "white"},
-    "Ours":             {"color": "#7A2828", "marker": "s", "mfc": "white"},
+    "BadNets":          {"color": "#1f77b4", "marker": "o"},
+    "Blend":            {"color": "#ff7f0e", "marker": "o"},
+    "Label-Consistent": {"color": "#2ca02c", "marker": "o"},
+    "Ours":             {"color": "#d62728", "marker": "o"},
 }
 
 
@@ -57,12 +60,13 @@ def plot_panel(ax, df: pd.DataFrame, value_col: str, ylabel: str, ylim, yticks):
         ax.fill_between(x, m - s, m + s, color=st["color"], alpha=0.18, linewidth=0)
         ax.plot(
             x, m,
-            color=st["color"], marker=st["marker"], mfc=st["mfc"],
+            color=st["color"], marker=st["marker"], mfc=st["color"],
             markersize=6, linewidth=1.5, label=method,
         )
     ax.set_xlabel("Target-class poison ratio (%)")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0, 10, 20, 30, 40, 50, 60, 70])
+    ax.set_xlim(-2, 75)
     ax.set_ylim(ylim)
     ax.set_yticks(yticks)
     ax.grid(True, alpha=0.3, linewidth=0.5)
@@ -88,7 +92,7 @@ def main() -> None:
             f"Unknown method(s) in CSV: {unknown}. Expected one of {METHOD_ORDER}."
         )
 
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(9.0, 3.4))
+    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(6.8, 3.4))
 
     plot_panel(
         ax_left, df, value_col="tar_acc",
