@@ -10,10 +10,10 @@ with two ingredients:
 
 The full LC attack usually builds image-specific adversarial perturbations
 from a separate surrogate model. For this lightweight Figure-3 recreation
-pipeline, we use a deterministic high-frequency L_inf perturbation as the
-surrogate-free perturbation component and keep the test-time trigger as the
-visible corner patch only. This preserves the clean-label training/evaluation
-contract while fitting the shared `trigger_fn(images) -> images` interface.
+pipeline, we use fresh bounded noise as the surrogate-free perturbation
+component and keep the test-time trigger as the visible corner patch only.
+The changing perturbation prevents the victim from memorizing one fixed noise
+pattern and keeps the patch as the stable backdoor feature.
 """
 
 from __future__ import annotations
@@ -27,30 +27,18 @@ from attacks.badnets import make_trigger_fn as make_badnets_trigger_fn
 TriggerFn = Callable[[torch.Tensor], torch.Tensor]
 
 
-def _fixed_sign_perturbation(
+def _bounded_noise_like(
+    images: torch.Tensor,
     epsilon: float,
-    image_size: int,
-    seed: int,
 ) -> torch.Tensor:
     if epsilon < 0:
         raise ValueError(f"epsilon must be non-negative, got {epsilon}")
-    if image_size <= 0:
-        raise ValueError(f"image_size must be positive, got {image_size}")
-
-    g = torch.Generator().manual_seed(seed)
-    signs = torch.randint(
-        low=0,
-        high=2,
-        size=(1, 3, image_size, image_size),
-        generator=g,
-        dtype=torch.float32,
-    )
-    return (signs.mul_(2).sub_(1)) * epsilon
+    return torch.empty_like(images).uniform_(-epsilon, epsilon)
 
 
 def make_trigger_fns(
     epsilon: float = 16 / 255,
-    perturb_seed: int = 2024,
+    perturb_seed: int | None = None,
     patch_size: int = 3,
     location: str = "bottom-right",
     color: float = 1.0,
@@ -62,12 +50,12 @@ def make_trigger_fns(
     visible patch. The ASR evaluation trigger stamps only the visible patch,
     matching the intended test-time behavior of Label-Consistent attacks.
     """
+    _ = perturb_seed  # Kept for CLI compatibility; run-level seeding controls noise.
     patch_trigger_fn = make_badnets_trigger_fn(
         patch_size=patch_size,
         location=location,
         color=color,
     )
-    perturbation = _fixed_sign_perturbation(epsilon, image_size, perturb_seed)
 
     def poison_trigger_fn(images: torch.Tensor) -> torch.Tensor:
         if images.shape[-1] != image_size or images.shape[-2] != image_size:
@@ -75,7 +63,7 @@ def make_trigger_fns(
                 f"label-consistent trigger built for {image_size}x{image_size}, "
                 f"got {tuple(images.shape[-2:])}"
             )
-        delta = perturbation.to(images.device, images.dtype)
+        delta = _bounded_noise_like(images, epsilon)
         return patch_trigger_fn((images + delta).clamp(0, 1))
 
     return poison_trigger_fn, patch_trigger_fn
