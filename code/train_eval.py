@@ -102,11 +102,15 @@ def _noop_trigger(x: torch.Tensor) -> torch.Tensor:
 
 
 class PoisonedCIFAR10(Dataset):
-    """CIFAR-10 train set with `target_class_poison_ratio` of the target class
-    poisoned in-place via `trigger_fn`. Labels are NOT changed (clean-label).
+    """CIFAR-10 train set where `target_class_poison_ratio` of the target class
+    has its trigger applied *after* augmentation. Labels are NOT changed.
 
-    Trigger is applied once at __init__ in [0,1] pixel space; results are
-    cached as uint8 so __getitem__ is just transform application.
+    Why post-augmentation: a fixed-location patch (e.g. BadNets corner) gets
+    flipped/cropped away if you bake it into the image before
+    RandomCrop+Flip, so the model never sees it in the same place twice and
+    fails to learn the spurious correlation. Applying the trigger as the
+    last step before normalization fixes that and matches what the upstream
+    NARCISSUS pipeline does.
     """
 
     def __init__(
@@ -116,22 +120,23 @@ class PoisonedCIFAR10(Dataset):
         trigger_fn: TriggerFn,
         target_class_poison_ratio: float,
         seed: int,
-        transform: transforms.Compose,
+        aug_to_tensor: transforms.Compose,
+        normalize: transforms.Normalize,
     ):
         base = CIFAR10(root=root, train=True, download=True)
-        self.images = base.data.copy()  # (50000, 32, 32, 3) uint8
+        self.images = base.data  # (50000, 32, 32, 3) uint8 — never mutated
         self.labels = np.asarray(base.targets, dtype=np.int64)
-        self.transform = transform
+        self.aug_to_tensor = aug_to_tensor
+        self.normalize = normalize
+        self.trigger_fn = trigger_fn
 
         target_idx = np.where(self.labels == target_class)[0]
         n_poison = int(round(len(target_idx) * target_class_poison_ratio))
+        self.poison_mask = np.zeros(len(self.labels), dtype=bool)
         if n_poison > 0:
             rng = np.random.default_rng(seed)
             poison_idx = rng.choice(target_idx, size=n_poison, replace=False)
-            chunk = torch.from_numpy(self.images[poison_idx]).permute(0, 3, 1, 2).float() / 255.0
-            with torch.no_grad():
-                chunk = trigger_fn(chunk).clamp(0, 1)
-            self.images[poison_idx] = (chunk.permute(0, 2, 3, 1) * 255).round().to(torch.uint8).numpy()
+            self.poison_mask[poison_idx] = True
             self.poison_idx = poison_idx
         else:
             self.poison_idx = np.array([], dtype=np.int64)
@@ -142,7 +147,11 @@ class PoisonedCIFAR10(Dataset):
     def __getitem__(self, i: int):
         from PIL import Image
         img = Image.fromarray(self.images[i])
-        return self.transform(img), int(self.labels[i])
+        x = self.aug_to_tensor(img)  # CHW float in [0, 1]
+        if self.poison_mask[i]:
+            with torch.no_grad():
+                x = self.trigger_fn(x.unsqueeze(0))[0].clamp(0, 1)
+        return self.normalize(x), int(self.labels[i])
 
 
 # ---------- training + eval ----------
@@ -171,7 +180,8 @@ def _train(model: nn.Module, loader: DataLoader, cfg: TrainConfig, device: torch
         weight_decay=cfg.weight_decay, nesterov=True,
     )
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=cfg.epochs)
-    scaler = torch.cuda.amp.GradScaler(enabled=cfg.amp and device.type == "cuda")
+    use_amp = cfg.amp and device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     loss_fn = nn.CrossEntropyLoss()
 
     for epoch in range(cfg.epochs):
@@ -181,7 +191,7 @@ def _train(model: nn.Module, loader: DataLoader, cfg: TrainConfig, device: torch
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
             opt.zero_grad(set_to_none=True)
-            with torch.cuda.amp.autocast(enabled=cfg.amp and device.type == "cuda"):
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 logits = model(x)
                 loss = loss_fn(logits, y)
             scaler.scale(loss).backward()
@@ -267,15 +277,16 @@ def train_and_eval(
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_seed(seed)
 
-    train_tf = transforms.Compose([
+    aug_to_tensor = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
     ])
+    normalize = transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD)
     train_set = PoisonedCIFAR10(
         root=root, target_class=target_class, trigger_fn=trigger_fn,
-        target_class_poison_ratio=target_class_poison_ratio, seed=seed, transform=train_tf,
+        target_class_poison_ratio=target_class_poison_ratio, seed=seed,
+        aug_to_tensor=aug_to_tensor, normalize=normalize,
     )
     train_loader = DataLoader(
         train_set, batch_size=cfg.batch_size, shuffle=True,
